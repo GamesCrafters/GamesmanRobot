@@ -47,6 +47,23 @@ def best_move(moves):
     else:
         print 'best_move: not returning a valid move'
 
+##allows the user to pick which move to make
+def player_pick_move(moves):
+    availableOptions = {}
+    for move in moves:
+        availableOptions[int(move['move'])] = move
+    #print "Available moves are:   " + str(moves)
+    choice = raw_input("Enter your move (0:7): ")
+    choice = int(choice)
+    #if not move in availableOptions.keys():
+        #print "Incorrect entry.  Enter a column 0,1,2,3,4,5,6 that is a valid move."
+        #return player_pick_move(moves)
+    try:
+        return availableOptions[choice]
+    except:
+        print "Bad choice.  Try again."
+        return player_pick_move(moves)
+    
 
 #takes in a string board representation
 #returns a list of possible moves
@@ -87,9 +104,29 @@ def play_game_robotVrobot(board):
         board = nextMove['board']
         print_board(board)
 
+#plays a game, mode[0] versus mode[1] (passed in as a tuple of (player1,player2), domain {"robot","player"}
+def play_game(board,mode):
+    currentPlayer = 0
+    while not primitive(board):
+        if(mode[currentPlayer] == "player"):  #play a single round as a player
+            print "******Player's turn.*******"
+            moves = board_to_response(board)
+            nextMove = player_pick_move(moves)
+            board = nextMove['board']
+        else:  #play a single round as robot, the default
+            print "*******Robot's turn.*******"
+            moves = board_to_response(board)
+            nextMove = best_move(moves)
+            board = nextMove['board']
+            
+        if(currentPlayer):  #pass control to other player
+            currentPlayer = 0
+        else:
+            currentPlayer = 1
 
+        print_board(board)  #print the current board for next player to move from
+    
     
 
-
-#play_game_robotVRobot(BOARD);
-play_game(BOARD,("r","r"))
+play_game(BOARD,("robot","player"))
+#play_game_robotVRobot(BOARD)
