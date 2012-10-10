@@ -4,11 +4,22 @@ import string
 
 class RobotMover:
     def __init__(self, port = '/dev/ttyACM0', rate = 9600):
-        self.robotSocket = serial.Serial(port, rate)
+        self.robotSocket = serial.Serial(port, rate,timeout = 1)
 
-    def move(self, column):
+    """
+    send the column number to robot
+    todo:  implement proper handshaking
+    """
+    def move(self, column):  
         self.robotSocket.write(bytes([column + 48])) # '0' == 48 (ASCII)
         return int(self.robotSocket.read())
+
+    """
+    reads information from the robot
+    todo:  figure out the protocols here
+    """
+    def read(self):
+        return int(self.robotSocket.read())  #
 
 BASEURL = "http://nyc.cs.berkeley.edu:8080/gcweb/service/gamesman/puzzles/connect4/getNextMoveValues;width=7;height=6;pieces=4;board="
 BOARD   = "                                          "
@@ -49,20 +60,20 @@ def best_move(moves):
 
 ##allows the user to pick which move to make
 def player_pick_move(moves):
-    availableOptions = {}
+    availableOptions = {}  #will contain all possible moves for the current state (Handles full columns)
+    properMoves = ["1","2","3","4","5","6","7"]  #available moves
     for move in moves:
         availableOptions[int(move['move'])] = move
-    #print "Available moves are:   " + str(moves)
-    choice = raw_input("Enter your move (0:7): ")
-    choice = int(choice)
-    #if not move in availableOptions.keys():
-        #print "Incorrect entry.  Enter a column 0,1,2,3,4,5,6 that is a valid move."
-        #return player_pick_move(moves)
-    try:
-        return availableOptions[choice]
-    except:
-        print "Bad choice.  Try again."
+    choice = raw_input("Enter your move (0:7): ")  #gets input
+    if(len(choice) > 1 or len(choice) == 0 or not choice in properMoves):  #checks if input is a number 1-7
+        print "Bad choice.  Enter number 1-7."
         return player_pick_move(moves)
+    choice = int(choice) - 1  #casts to int
+    try:
+        return availableOptions[choice]  #tries to get the move value of our choice, if it fails...
+    except:
+        print "Bad choice.  Enter number 1-7 that isn't a full column."
+        return player_pick_move(moves)  #print error message, try again
     
 
 #takes in a string board representation
@@ -83,7 +94,22 @@ def board_to_response(board):
         return ans
 
 #prints out an ascii representation of the board
-def print_board(board):
+def print_board(moves,choice):
+    board = choice['board']
+    moveValues = ['B','B','B','B','B','B','B']
+    for item in moves:
+        if item['value'] == 'win':
+            moveValues[int(item['move'])] = 'W'
+        if item['value'] == 'tie':
+            moveValues[int(item['move'])] = 'T'
+        if item['value'] == 'lose':
+            moveValues[int(item['move'])] = 'L'
+            
+    lineSoFar = "||"
+    for item in moveValues:
+        lineSoFar += item + "|"
+    print lineSoFar + "|"
+        
     for i in range(5,-1,-1):
         lineSoFar = ""
         for j in range(0,7):
@@ -106,6 +132,9 @@ def play_game_robotVrobot(board):
 
 #plays a game, mode[0] versus mode[1] (passed in as a tuple of (player1,player2), domain {"robot","player"}
 def play_game(board,mode):
+    print "START BOARD"
+    print_board(board_to_response(BOARD),{"board":BOARD})
+    
     currentPlayer = 0
     while not primitive(board):
         if(mode[currentPlayer] == "player"):  #play a single round as a player
@@ -124,9 +153,16 @@ def play_game(board,mode):
         else:
             currentPlayer = 1
 
-        print_board(board)  #print the current board for next player to move from
+        print_board(board_to_response(board),nextMove)  #print the current board for next player to move from
+        print
+        
+    if(currentPlayer):  #pass control to other player
+        currentPlayer = 0
+    else:
+        currentPlayer = 1
+    print "Game over!  Winner was player " + str(currentPlayer + 1)
     
     
 
-play_game(BOARD,("robot","player"))
+play_game(BOARD,("player","robot"))
 #play_game_robotVRobot(BOARD)
