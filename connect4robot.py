@@ -1,16 +1,37 @@
 import urllib
 import string
 import serial
+from time import sleep
 
-debugMode = 1
+debugMode = 0
+getMoveFromSerial = 0
 
 class RobotMover:
-    def __init__(self, port = '/dev/ttyACM0', rate = 9600):
+    def __init__(self, port = 'COM8', rate = 9600):
         if not debugMode:
             self.robotSocket = serial.Serial(port, rate)
+            self.cycle(.2)
+            
         else:
             print "Opened robot socket"
 
+    def cycle(self, rate):
+        sleep(rate);
+        self.move(0);
+        sleep(rate);
+        self.move(1);
+        sleep(rate);
+        self.move(2);
+        sleep(rate);
+        self.move(3)
+        sleep(rate);
+        self.move(4);
+        sleep(rate);
+        self.move(5);
+        sleep(rate);
+        self.move(6);
+        sleep(rate);
+        self.move(7);
     """
     send the column number to robot
     will send out a value 0-6 which is the proper choice of action
@@ -18,7 +39,7 @@ class RobotMover:
     """
     def move(self, column):
         if not debugMode:
-            self.robotSocket.write(bytes([column + 48])) # '0' == 48 (ASCII)
+            self.robotSocket.write(bytes([int(column)])) # '0' == 48 (ASCII)
         else:
             print "Told robot to move in column " + str(column)
 
@@ -30,7 +51,7 @@ class RobotMover:
     """
     def read(self):
         if not debugMode:
-            return int(self.robotSocket.readLine())  #
+            return int(self.robotSocket.readline())  #
         else:
             return 7
 
@@ -73,7 +94,7 @@ def best_move(moves):
 
 ##allows the user to pick which move to make
 def player_pick_move(moves, robot):
-    if debugMode:
+    if debugMode or not getMoveFromSerial:
         availableOptions = {}  #will contain all possible moves for the current state (Handles full columns)
         properMoves = ["1","2","3","4","5","6","7"]  #available moves
         for move in moves:
@@ -81,13 +102,13 @@ def player_pick_move(moves, robot):
         choice = raw_input("Enter your move (0:7): ")  #gets input
         if(len(choice) > 1 or len(choice) == 0 or not choice in properMoves):  #checks if input is a number 1-7
             print "Bad choice.  Enter number 1-7."
-            return player_pick_move(moves)
+            return player_pick_move(moves, robot)
         choice = int(choice) - 1  #casts to int
         try:
             return availableOptions[choice]  #tries to get the move value of our choice, if it fails...
         except:
             print "Bad choice.  Enter number 1-7 that isn't a full column."
-            return player_pick_move(moves)  #print error message, try again
+            return player_pick_move(moves, robot)  #print error message, try again
     else:
         return robot.read()
         
@@ -166,6 +187,17 @@ def play_game(board,mode):
         currentPlayer = 1
     print "Game over!  Winner was player " + str(currentPlayer + 1)
     
-    
+def direct_feed_to_arduino():
+    robot = RobotMover()
+    print "STARTING DIRECT FEED"
+    while(1):
+        try:
+            choice = raw_input("Enter your move [0:7): ")
+            choice = int(choice) - 1  #casts to int
+            robot.move(choice)
+        except:
+            continue
 
 play_game(BOARD,("robot","robot"))
+
+#direct_feed_to_arduino()
