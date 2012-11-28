@@ -1,25 +1,38 @@
 import urllib
 import string
-#import serial
+import serial
+
+debugMode = 1
 
 class RobotMover:
     def __init__(self, port = '/dev/ttyACM0', rate = 9600):
-        self.robotSocket = serial.Serial(port, rate,timeout = 1)
+        if not debugMode:
+            self.robotSocket = serial.Serial(port, rate)
+        else:
+            print "Opened robot socket"
 
     """
     send the column number to robot
-    todo:  implement proper handshaking
+    will send out a value 0-6 which is the proper choice of action
+    todo:  error checking
     """
-    def move(self, column):  
-        self.robotSocket.write(bytes([column + 48])) # '0' == 48 (ASCII)
-        return int(self.robotSocket.read())
+    def move(self, column):
+        if not debugMode:
+            self.robotSocket.write(bytes([column + 48])) # '0' == 48 (ASCII)
+        else:
+            print "Told robot to move in column " + str(column)
 
     """
     reads information from the robot
-    todo:  figure out the protocols here
+    will block till it recieves soemthing 0-6 (choice of action)
+    todo: error checking, implement a proper handshake
+    returns 7 in the case of debugmode, in which case we'll do it in console
     """
     def read(self):
-        return int(self.robotSocket.read())  #
+        if not debugMode:
+            return int(self.robotSocket.readLine())  #
+        else:
+            return 7
 
 BASEURL = "http://nyc.cs.berkeley.edu:8080/gcweb/service/gamesman/puzzles/connect4/getNextMoveValues;width=7;height=6;pieces=4;board="
 BOARD   = "                                          "
@@ -59,22 +72,25 @@ def best_move(moves):
         print 'best_move: not returning a valid move'
 
 ##allows the user to pick which move to make
-def player_pick_move(moves):
-    availableOptions = {}  #will contain all possible moves for the current state (Handles full columns)
-    properMoves = ["1","2","3","4","5","6","7"]  #available moves
-    for move in moves:
-        availableOptions[int(move['move'])] = move
-    choice = raw_input("Enter your move (0:7): ")  #gets input
-    if(len(choice) > 1 or len(choice) == 0 or not choice in properMoves):  #checks if input is a number 1-7
-        print "Bad choice.  Enter number 1-7."
-        return player_pick_move(moves)
-    choice = int(choice) - 1  #casts to int
-    try:
-        return availableOptions[choice]  #tries to get the move value of our choice, if it fails...
-    except:
-        print "Bad choice.  Enter number 1-7 that isn't a full column."
-        return player_pick_move(moves)  #print error message, try again
-    
+def player_pick_move(moves, robot):
+    if debugMode:
+        availableOptions = {}  #will contain all possible moves for the current state (Handles full columns)
+        properMoves = ["1","2","3","4","5","6","7"]  #available moves
+        for move in moves:
+            availableOptions[int(move['move'])] = move
+        choice = raw_input("Enter your move (0:7): ")  #gets input
+        if(len(choice) > 1 or len(choice) == 0 or not choice in properMoves):  #checks if input is a number 1-7
+            print "Bad choice.  Enter number 1-7."
+            return player_pick_move(moves)
+        choice = int(choice) - 1  #casts to int
+        try:
+            return availableOptions[choice]  #tries to get the move value of our choice, if it fails...
+        except:
+            print "Bad choice.  Enter number 1-7 that isn't a full column."
+            return player_pick_move(moves)  #print error message, try again
+    else:
+        return robot.read()
+        
 
 #takes in a string board representation
 #returns a list of possible moves
@@ -117,37 +133,25 @@ def print_board(moves,choice):
             lineSoFar += board[i*7 + j]
         print "|" + lineSoFar + "||"
 
-#plays a game with itself, useful
-def play_game_robotVrobot(board):
-    #robot = RobotMover()
-    while not primitive(board):
-        #board = update_board()
-        #print board
-        moves = board_to_response(board)
-        nextMove = best_move(moves)
-        print nextMove
-        #robot.move(nextMove['move'])
-        board = nextMove['board']
-        print_board(board)
-
 #plays a game, mode[0] versus mode[1] (passed in as a tuple of (player1,player2), domain {"robot","player"}
 def play_game(board,mode):
+    robot = RobotMover()
     print "START BOARD"
     print_board(board_to_response(BOARD),{"board":BOARD})
-    
     currentPlayer = 0
     while not primitive(board):
         if(mode[currentPlayer] == "player"):  #play a single round as a player
             print "******Player's turn.*******"
             moves = board_to_response(board)
-            nextMove = player_pick_move(moves)
+            nextMove = player_pick_move(moves, robot)
             board = nextMove['board']
+            robot.move(nextMove['move'])
         else:  #play a single round as robot, the default
             print "*******Robot's turn.*******"
             moves = board_to_response(board)
             nextMove = best_move(moves)
             board = nextMove['board']
-            
+            robot.move(nextMove['move'])
         if(currentPlayer):  #pass control to other player
             currentPlayer = 0
         else:
@@ -164,5 +168,4 @@ def play_game(board,mode):
     
     
 
-play_game(BOARD,("player","robot"))
-#play_game_robotVRobot(BOARD)
+play_game(BOARD,("robot","robot"))
