@@ -1,6 +1,7 @@
 import urllib
 import string
 import serial
+import time
 from time import sleep
 
 debugMode = 0
@@ -16,6 +17,7 @@ class RobotMover:
             print "Opened robot socket"
 
     def cycle(self, rate):
+        return
         sleep(rate);
         self.move(0);
         sleep(rate);
@@ -40,6 +42,7 @@ class RobotMover:
     def move(self, column):
         if not debugMode:
             self.robotSocket.write(bytes([int(column)])) # '0' == 48 (ASCII)
+            self.read() #blocks till move done
         else:
             print "Told robot to move in column " + str(column)
 
@@ -50,10 +53,17 @@ class RobotMover:
     returns 7 in the case of debugmode, in which case we'll do it in console
     """
     def read(self):
+        return 7;
         if not debugMode:
             return int(self.robotSocket.readline())  #
         else:
             return 7
+
+    def release(self):
+        if not debugMode:
+            self.robotSocket.close()
+        else:
+            return 1
 
 BASEURL = "http://nyc.cs.berkeley.edu:8080/gcweb/service/gamesman/puzzles/connect4/getNextMoveValues;width=7;height=6;pieces=4;board="
 BOARD   = "                                          "
@@ -96,14 +106,19 @@ def best_move(moves):
 def player_pick_move(moves, robot):
     if debugMode or not getMoveFromSerial:
         availableOptions = {}  #will contain all possible moves for the current state (Handles full columns)
-        properMoves = ["1","2","3","4","5","6","7"]  #available moves
+        properMoves = ["0","1","2","3","4","5","6","7"]  #available moves
         for move in moves:
             availableOptions[int(move['move'])] = move
-        choice = raw_input("Enter your move (0:7): ")  #gets input
+        choice = raw_input("Enter your move [1:8): ")  #gets input
         if(len(choice) > 1 or len(choice) == 0 or not choice in properMoves):  #checks if input is a number 1-7
             print "Bad choice.  Enter number 1-7."
             return player_pick_move(moves, robot)
-        choice = int(choice) - 1  #casts to int
+        if(choice == "0"): #reset option
+            if( int(raw_input("Enter 0 to confirm reset: ")) == 0):
+                return -1
+            else:
+                return player_pick_move(moves,robot)
+        choice = int(choice) - 1 #casts to int
         try:
             return availableOptions[choice]  #tries to get the move value of our choice, if it fails...
         except:
@@ -165,10 +180,14 @@ def play_game(board,mode):
             print "******Player's turn.*******"
             moves = board_to_response(board)
             nextMove = player_pick_move(moves, robot)
+            if(nextMove == -1):
+                end_game(robot)
+                return
             board = nextMove['board']
             robot.move(nextMove['move'])
         else:  #play a single round as robot, the default
             print "*******Robot's turn.*******"
+            time.sleep(5)
             moves = board_to_response(board)
             nextMove = best_move(moves)
             board = nextMove['board']
@@ -192,12 +211,27 @@ def direct_feed_to_arduino():
     print "STARTING DIRECT FEED"
     while(1):
         try:
-            choice = raw_input("Enter your move [0:7): ")
+            choice = raw_input("Enter your move [1:8): ")
             choice = int(choice) - 1  #casts to int
             robot.move(choice)
         except:
             continue
+def end_game(robot):
+    robot.move(7)
+    robot.read()
+    robot.release()
 
-play_game(BOARD,("robot","robot"))
+def play_games():
+    while(1):
+        play_game(BOARD, ("player","robot"))
+        print "GG!  Starting a new game..."
+        print
+        print
+        print
+        
+        
+
+play_games()
+#play_game(BOARD,("player","robot"))
 
 #direct_feed_to_arduino()
