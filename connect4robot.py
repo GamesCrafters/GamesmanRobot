@@ -4,8 +4,11 @@ import serial
 import time
 from time import sleep
 
-debugMode = 0
+players = 'player', 'player' 	#Set players: player = human, robot = computer
+debugMode = 1			#Set to 1 if not connected to arduino
 getMoveFromSerial = 0
+
+
 
 class RobotMover:
     def __init__(self, port = 'COM8', rate = 9600):
@@ -77,6 +80,7 @@ def primitive(board):
 #returns a winning move with lowest remoteness
 #or a tie move with highest remoteness
 #or a losing move with highest remoteness
+
 def best_move(moves):
     low_remote_win = {'remoteness': 9001}
     high_remote_tie = {'remoteness': -1}
@@ -145,9 +149,58 @@ def board_to_response(board):
         MEMOIZED_TABLE[board] = ans
         return ans
 
+#Returns a sorted list of (move,led_value) tuples.
+# 4 = Best Move (Lowest Remoteness Win, Highest Remoteness Tie/Lose)
+# 3 = 2nd Best Move
+# 2 = 3rd Best Move
+# 1 = All Other Moves
+
+def led_moves(moves):
+    def inc(x,y):
+        return x[1]-y[1]
+    def dec(x,y):
+        return y[1]-x[1]
+    def led(lst):
+        result = []
+        leds = 5
+        r = -1 #Check for remoteness ties
+        for item in lst:
+	    if item[1]!=r and leds>1:
+	        leds = leds - 1
+	    r = item[1]
+	    result.append((item[0],leds))
+        return result    
+    ## Do some sorting here!!!
+    wins = []
+    ties = []
+    loses = []
+    for move in moves:
+        if move['value'] == 'win':
+	    wins.append((move['move'],move['remoteness']))
+	elif move['value'] == 'tie':
+	    ties.append((move['move'],move['remoteness']))
+	elif move['value'] == 'lose':
+	    loses.append((move['move'],move['remoteness']))
+    wins = led(sorted(wins,inc)) #inc = lowest remoteness first
+    ties = led(sorted(ties,dec)) #dec = highest remoteness first
+    loses = led(sorted(loses,dec)) #dec = highest remoteness first
+    return sorted(wins+ties+loses)
+
 #prints out an ascii representation of the board
+#added led values for delta-remoteness
 def print_board(moves,choice):
+
     board = choice['board']
+    
+    moveDeltas = ['0','0','0','0','0','0','0']
+    ledmoves = led_moves(moves)
+    for item in ledmoves:
+	moveDeltas[int(item[0])] = str(item[1])
+    lineSoFar = "||"
+    for item in moveDeltas:
+        lineSoFar += item + "|"
+    print lineSoFar + "|"
+
     moveValues = ['B','B','B','B','B','B','B']
     for item in moves:
         if item['value'] == 'win':
@@ -156,7 +209,6 @@ def print_board(moves,choice):
             moveValues[int(item['move'])] = 'T'
         if item['value'] == 'lose':
             moveValues[int(item['move'])] = 'L'
-            
     lineSoFar = "||"
     for item in moveValues:
         lineSoFar += item + "|"
